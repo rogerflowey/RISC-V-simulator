@@ -86,6 +86,33 @@ public:
         return data[prev_index(_back)];
     }
 
+    // Index access
+    [[nodiscard]] reference at(size_type index) {
+        if (index >= _size) {
+            throw std::out_of_range("Queue index out of range");
+        }
+        size_t real_index = (_front + index) % MAX_SIZE;
+        return data[real_index];
+    }
+    
+    [[nodiscard]] const_reference at(size_type index) const {
+        if (index >= _size) {
+            throw std::out_of_range("Queue index out of range");
+        }
+        size_t real_index = (_front + index) % MAX_SIZE;
+        return data[real_index];
+    }
+    
+    [[nodiscard]] reference operator[](size_type index) noexcept {
+        size_t real_index = (_front + index) % MAX_SIZE;
+        return data[real_index];
+    }
+    
+    [[nodiscard]] const_reference operator[](size_type index) const noexcept {
+        size_t real_index = (_front + index) % MAX_SIZE;
+        return data[real_index];
+    }
+
     // Capacity
     [[nodiscard]] bool empty() const noexcept {
         return _size == 0;
