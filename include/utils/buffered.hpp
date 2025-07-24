@@ -1,18 +1,32 @@
 #pragma once
+
+#include <type_traits>
+
 #include "clock.hpp"
 
 
+
 template <typename T>
+requires std::is_copy_constructible_v<T> && std::is_copy_assignable_v<T>
 class Buffered {
     T value;
     T new_value;
 
 public:
-    Buffered(const T& v):value(v),new_value(v){
-        Clock::getInstance().subscribe([this]() { this->commit(); });
+    Buffered():value(),new_value(){
+        Clock::getInstance().subscribe([this]() { this->commit(); },FALLING);
     }
 
-    void update(T new_val) {
+    Buffered(const T& v):value(v),new_value(v){
+        Clock::getInstance().subscribe([this]() { this->commit(); },FALLING);
+    }
+
+    template<typename... Args>
+    Buffered(Args&&... args):value(std::forward<Args>(args)...),new_value(std::forward<Args>(args)...){
+        Clock::getInstance().subscribe([this]() { this->commit(); },FALLING);
+    }
+
+    void update(const T& new_val) {
         new_value = new_val;
     }
 
@@ -20,15 +34,20 @@ public:
         value = new_value;
     }
 
-    T get() const {
-        return value;
-    }
-
-    operator T() const {
-        return get();
-    }
-
     void operator<=(const T& new_val) {
         update(new_val);
+    }
+
+    T* operator->() {
+        return &value;
+    }
+    const T* operator->() const {
+        return &value;
+    }
+    T& operator*() {
+        return value;
+    }
+    const T& operator*() const {
+        return value;
     }
 };
