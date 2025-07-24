@@ -21,20 +21,21 @@ enum class LogLevel {
 class Logger;
 
 /**
- * @class LogEntry
- * @brief A temporary object to build a single log entry using a fluent API.
+ * @class LogBuilder
+ * @brief A temporary object to build a single log entry with ad-hoc fields, using a fluent API.
+ *        (Formerly LogEntry)
  */
-class LogEntry {
+class LogBuilder {
 private:
     Logger& logger;
-    std::vector<std::pair<std::string, std::string>> fields;
+    std::vector<std::pair<std::string, std::string>> ephemeral_fields;
 
 public:
-    inline LogEntry(Logger& logger);
+    inline LogBuilder(Logger& logger);
 
-    // Adds a key-value field to the log entry's context.
+    // Adds a key-value field to this specific log entry.
     template<typename T>
-    inline LogEntry& With(const std::string& key, const T& value);
+    inline LogBuilder& With(const std::string& key, const T& value);
 
     // Terminal methods that write the log
     inline void Info(const std::string& message, const std::source_location& loc = std::source_location::current());
@@ -42,22 +43,32 @@ public:
     template<typename ExceptionType = std::runtime_error>
     [[nodiscard]] inline ExceptionType Error(const std::string& message, const std::source_location& loc = std::source_location::current());
 };
+
 /**
  * @class Logger
- * @brief The main logger class. Manages configuration and creates log entries.
+ * @brief The main logger class. Manages configuration, context, and creates log entries.
  */
 class Logger {
-    friend class LogEntry;
+    friend class LogBuilder;
 
 private:
     std::ostream& output_stream;
     LogLevel min_level;
+    // Fields that are part of this logger's permanent context
+    std::vector<std::pair<std::string, std::string>> context_fields;
 
-    // The core logging function, called by LogEntry
+    // Private constructor for creating new loggers with context
+    inline Logger(
+        std::ostream& stream,
+        LogLevel level,
+        std::vector<std::pair<std::string, std::string>> context)
+        : output_stream(stream), min_level(level), context_fields(std::move(context)) {}
+
+    // The core logging function, called by LogBuilder or Logger itself
     inline void log_internal(
         LogLevel level,
         const std::string& message,
-        const std::vector<std::pair<std::string, std::string>>& fields,
+        const std::vector<std::pair<std::string, std::string>>& ephemeral_fields,
         const std::source_location& loc);
 
 public:
@@ -65,13 +76,22 @@ public:
 
     inline void SetLevel(LogLevel level);
 
+    
+
     // --- Entry points for logging ---
 
-    // Start a structured log with a field
+    /**
+     * @brief Creates a new logger with an added permanent context field.
+     * @return A new Logger instance with the combined context.
+     */
     template<typename T>
-    inline LogEntry With(const std::string& key, const T& value);
+    [[nodiscard]] inline Logger WithContext(const std::string& key, const T& value) const;
 
-    // Log a simple message directly
+    // Start a structured log with a temporary field for a single message
+    template<typename T>
+    inline LogBuilder With(const std::string& key, const T& value);
+
+    // Log a simple message directly (will include the logger's context)
     inline void Info(const std::string& message, const std::source_location& loc = std::source_location::current());
     inline void Warn(const std::string& message, const std::source_location& loc = std::source_location::current());
     template<typename ExceptionType = std::runtime_error>
@@ -80,7 +100,6 @@ public:
 
 // --- Helper Functions ---
 
-// Converts LogLevel enum to a string. Inlined to keep it in the header.
 inline const char* level_to_string(LogLevel level) {
     switch (level) {
         case LogLevel::INFO:  return "INFO";
@@ -90,35 +109,30 @@ inline const char* level_to_string(LogLevel level) {
     return "UNKNOWN";
 }
 
-// --- LogEntry Implementation ---
+// --- LogBuilder Implementation ---
 
-inline LogEntry::LogEntry(Logger& logger) : logger(logger) {}
+inline LogBuilder::LogBuilder(Logger& logger) : logger(logger) {}
 
 template<typename T>
-inline LogEntry& LogEntry::With(const std::string& key, const T& value) {
+inline LogBuilder& LogBuilder::With(const std::string& key, const T& value) {
     std::stringstream ss;
     ss << value;
-    fields.emplace_back(key, ss.str());
+    ephemeral_fields.emplace_back(key, ss.str());
     return *this; // Return reference to self for chaining
 }
 
-inline void LogEntry::Info(const std::string& message, const std::source_location& loc) {
-    logger.log_internal(LogLevel::INFO, message, fields, loc);
+inline void LogBuilder::Info(const std::string& message, const std::source_location& loc) {
+    logger.log_internal(LogLevel::INFO, message, ephemeral_fields, loc);
 }
 
-inline void LogEntry::Warn(const std::string& message, const std::source_location& loc) {
-    logger.log_internal(LogLevel::WARN, message, fields, loc);
+inline void LogBuilder::Warn(const std::string& message, const std::source_location& loc) {
+    logger.log_internal(LogLevel::WARN, message, ephemeral_fields, loc);
 }
 
 template<typename ExceptionType>
-[[nodiscard]] inline ExceptionType LogEntry::Error(const std::string& message, const std::source_location& loc) {
-    // Step 1: Log the detailed, structured error message.
-    logger.log_internal(LogLevel::ERROR, message, fields, loc);
-
-    // Step 2: Create a clean message for the exception itself.
+[[nodiscard]] inline ExceptionType LogBuilder::Error(const std::string& message, const std::source_location& loc) {
+    logger.log_internal(LogLevel::ERROR, message, ephemeral_fields, loc);
     std::string exception_message = std::string(loc.function_name()) + ": " + message;
-
-    // Step 3: Return the exception object for the caller to throw.
     return ExceptionType(exception_message);
 }
 
@@ -134,7 +148,7 @@ inline void Logger::SetLevel(LogLevel level) {
 inline void Logger::log_internal(
     LogLevel level,
     const std::string& message,
-    const std::vector<std::pair<std::string, std::string>>& fields,
+    const std::vector<std::pair<std::string, std::string>>& ephemeral_fields,
     const std::source_location& loc)
 {
     if (level < min_level) {
@@ -147,7 +161,12 @@ inline void Logger::log_internal(
                   << " [" << level_to_string(level) << "] "
                   << "\"" << message << "\" ";
 
-    for (const auto& pair : fields) {
+    // First, print the permanent context fields from the logger
+    for (const auto& pair : context_fields) {
+        output_stream << pair.first << "=\"" << pair.second << "\" ";
+    }
+    // Then, print the temporary fields for this specific message
+    for (const auto& pair : ephemeral_fields) {
         output_stream << pair.first << "=\"" << pair.second << "\" ";
     }
 
@@ -155,12 +174,27 @@ inline void Logger::log_internal(
 }
 
 template<typename T>
-inline LogEntry Logger::With(const std::string& key, const T& value) {
-    LogEntry entry(*this);
-    return entry.With(key, value);
+[[nodiscard]] inline Logger Logger::WithContext(const std::string& key, const T& value) const {
+    // Create a copy of the current context
+    auto new_context = this->context_fields;
+    
+    // Add the new field
+    std::stringstream ss;
+    ss << value;
+    new_context.emplace_back(key, ss.str());
+
+    // Return a new logger instance with the new, extended context
+    return Logger(this->output_stream, this->min_level, std::move(new_context));
+}
+
+template<typename T>
+inline LogBuilder Logger::With(const std::string& key, const T& value) {
+    LogBuilder builder(*this);
+    return builder.With(key, value);
 }
 
 inline void Logger::Info(const std::string& message, const std::source_location& loc) {
+    // Pass an empty vector for ephemeral fields
     log_internal(LogLevel::INFO, message, {}, loc);
 }
 
@@ -170,12 +204,7 @@ inline void Logger::Warn(const std::string& message, const std::source_location&
 
 template<typename ExceptionType>
 [[nodiscard]] inline ExceptionType Logger::Error(const std::string& message, const std::source_location& loc) {
-    // Create a temporary LogEntry to do the work, ensuring consistent behavior
-    LogEntry entry(*this);
-    return entry.Error<ExceptionType>(message, loc);
-}
-
-inline Logger& logger() {
-    static Logger global_logger;
-    return global_logger;
+    log_internal(LogLevel::ERROR, message, {}, loc);
+    std::string exception_message = std::string(loc.function_name()) + ": " + message;
+    return ExceptionType(exception_message);
 }
