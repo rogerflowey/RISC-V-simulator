@@ -26,28 +26,27 @@ public:
         Clock::getInstance().subscribe([this]() { this->commit(); },FALLING);
     }
 
-    void update(const T& new_val) {
-        new_value = new_val;
-    }
-
+    
     void commit() {
         value = new_value;
     }
 
     void operator<=(const T& new_val) {
-        update(new_val);
+        new_value = new_val;
     }
 
-    T* operator->() {
-        return &value;
-    }
+
+    //read only
     const T* operator->() const {
         return &value;
     }
-    T& operator*() {
-        return value;
-    }
     const T& operator*() const {
         return value;
+    }
+
+
+    //write is only available for new_value
+    T& next() {
+        return new_value;
     }
 };
