@@ -1,10 +1,17 @@
 #pragma once
+#include <cstddef>
 #include <vector>
 #include <functional>
+
+enum Edge{
+    RISING,
+    FALLING
+};
 
 
 class Clock{
     std::vector<std::function<void()>> subscribers;
+    std::vector<std::function<void()>> tock_sub;
     size_t current_time;
 
 public:
@@ -22,9 +29,20 @@ public:
         for (auto& subscriber : subscribers) {
             subscriber();
         }
+        for (auto& subscriber : tock_sub) {
+            subscriber();
+        }
     }
 
-    void subscribe(std::function<void()> callback) {
-        subscribers.push_back(callback);
+    void subscribe(std::function<void()> callback, Edge edge = RISING) {
+        if (edge == RISING) {
+            subscribers.push_back(callback);
+        } else {
+            tock_sub.push_back(callback);
+        }
+    }
+
+    size_t getTime(){
+        return current_time;
     }
 };
