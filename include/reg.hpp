@@ -2,16 +2,16 @@
 
 #include "cdb.hpp"
 #include "constants.hpp"
+#include "utils/buffered.hpp"
 #include "utils/clock.hpp"
 #include <utility>
 
 
 
 
-
 class RegisterFile{
-    RegType reg[REG_SIZE];
-    RobIDType rename[REG_SIZE];
+    std::array<Buffered<RegDataType>, REG_SIZE> reg;
+    std::array<Buffered<RobIDType>, REG_SIZE> rename;
     CommonDataBus& cdb;
 
 public:
@@ -19,21 +19,22 @@ public:
         Clock::getInstance().subscribe([this]{ this->tick(); });
     }
 
-    void set(RegIDType id, RegType value){
-        reg[id] = value;
-    }
-    std::pair<RegType,RobIDType> get(RegIDType id){
-        return {reg[id],rename[id]};
+    // WARNING: Data committed in last cycle will not be in reg, 
+    // you have to check the CDB for it
+    std::pair<RegDataType,RobIDType> get(RegIDType id){
+        return {*reg[id],*rename[id]};
     }
     void preset(RegIDType id, RobIDType rob_id){
-        rename[id] = rob_id;
+        rename[id] <= rob_id;
     }
 
     void tick(){
         auto result = cdb.get();
-        for(int i = 0; i < REG_SIZE; i++){
-            if(rename[i] == result.first){
-                reg[i] = result.second;
+        if(result){
+            for(int i = 0; i < REG_SIZE; i++){
+                if(*rename[i] == result->rob_id){
+                    reg[i] <= result->data;
+                }
             }
         }
     }

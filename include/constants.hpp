@@ -1,14 +1,20 @@
 #pragma once
 
 #include <cstddef>
-#include <sys/types.h>
+#include <cstdint>
 
-using RegIDType = u_int8_t;
-using RegType = u_int32_t;
-using WordType = u_int32_t;
-using RobIDType = u_int8_t;
-using MemAddrType = u_int32_t;
-using MemDataType = u_int32_t;
+using RegIDType = uint8_t;
+using RegDataType = uint32_t;
+using WordType = uint32_t;
+
+// 0 is left for unused
+using RobIDType = uint8_t;
+
+
+using MemAddrType = uint32_t;
+using MemDataType = uint32_t;
+using ImmType = uint16_t;
+using PCType = uint32_t;
 
 constexpr size_t MEMORY_SIZE = 1024 * 1024;
 constexpr size_t CACHE_LINE_SIZE = 8;
