@@ -37,10 +37,6 @@ public:
         Clock::getInstance().subscribe([this]{ this->work(); });
     }
 
-    auto get_response_channel() -> Channel<MemoryResponse>& {
-        return mob.get_response_channel();
-    }
-
     void work(){
         // phase 1: Process incoming instructions
         if(!buffer.full()){

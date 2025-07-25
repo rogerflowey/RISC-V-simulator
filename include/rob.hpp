@@ -2,19 +2,36 @@
 
 #include "cdb.hpp"
 #include "constants.hpp"
-#include "reg.hpp"
-#include "utils/logger/logger.hpp"
+#include "logger.hpp"
 #include "utils/queue.hpp"
 #include <sys/types.h>
 
 enum ROBState{
-    COMMIT,WRITE_RESULT,EXECUTE
+    ISSUE,COMMIT,WRITE_RESULT,EXECUTE
 };
 
-struct ROBEntry{
-    ROBState state;
+enum class InstType {
+    ALU,
+    LOAD,
+    STORE,
+    BRANCH
+};
+
+struct ROBEntry {
     RobIDType id;
-    u_int32_t value;
+    InstType type;
+    ROBState state;
+    PCType instruction_pc;
+    RegIDType dest_reg;
+
+    bool is_ready;
+    RegDataType value;
+
+    bool predicted_taken;
+    PCType actual_target_pc;
+    bool is_mispredicted;
+
+    ROBEntry() : is_ready(false), is_mispredicted(false) {}
 };
 
 class ReorderBuffer{
@@ -26,20 +43,16 @@ public:
 
     void Finish(ROBEntry entry){
         if(buffer.empty()){
-            throw logger().With("ROB_ID",entry.id).Error("Buffer is empty");
+            throw logger.With("ROB_ID",entry.id).Error("Buffer is empty");
         }
         auto offset = entry.id - buffer.front().id;
         if(!(buffer[offset].id==entry.id)){
-            throw logger().With("ROB_ID",entry.id).Error("Buffer ID mismatch");
+            throw logger.With("ROB_ID",entry.id).Error("Buffer ID mismatch");
         }
         buffer[offset] = entry;
+        logger.With("ROB_ID",entry.id).With("Value",entry.value).Info("Buffer entry updated");
     }
 
     void work(){
-        if(buffer.front().state==WRITE_RESULT){
-            auto entry = buffer.front();
-            buffer.pop_front();
-            cdb.set(entry.id,entry.value);
-        }
     }
 };

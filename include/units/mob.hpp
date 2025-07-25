@@ -25,10 +25,7 @@ class MemoryOrderBuffer {
 public:
   MemoryOrderBuffer(CommonDataBus &cdb, Memory &mem) : cdb(cdb), mem(mem) {
     Clock::getInstance().subscribe([this]{ this->work(); });
-  }
-
-  auto get_response_channel() -> Channel<MemoryResponse> & {
-    return mem.get_response_channel();
+    cdb.connect(mem.get_response_channel());
   }
 
   void work() {

@@ -1,4 +1,5 @@
 #pragma once
+#include "cdb.hpp"
 #include "constants.hpp"
 #include "logger.hpp"
 #include "utils/bus.hpp"
@@ -24,17 +25,12 @@ struct MemoryRequest {
   }
 };
 
-struct MemoryResponse {
-  RobIDType rob_id;
-  MemDataType data;
-};
-
 class Memory {
   alignas(8) std::byte memory[MEMORY_SIZE]{};
   int time_cnt;
   MemoryRequest request;
   Channel<MemoryRequest> request_c;
-  Channel<MemoryResponse> response_c;
+  Channel<CDBResult> response_c;
 
 public:
   Memory() {
@@ -43,7 +39,7 @@ public:
 
   Channel<MemoryRequest> &get_request_channel() { return request_c; }
 
-  Channel<MemoryResponse> &get_response_channel() { return response_c; }
+  Channel<CDBResult> &get_response_channel() { return response_c; }
 
   void tick() {
     if (time_cnt == 0) {
@@ -69,12 +65,12 @@ public:
                                       &memory[request.address + request.size]))
                   : bytes_to_uint(&memory[request.address],
                                   &memory[request.address + request.size]);
-          response_c.send(MemoryResponse{ request.rob_id, value});
+          response_c.send(CDBResult{ request.rob_id, value});
           logger.With("ROB_ID", request.rob_id)
               .With("Value", value)
               .Info("Memory read");
         } else {
-          response_c.send(MemoryResponse{ request.rob_id, 0});
+          response_c.send(CDBResult{ request.rob_id, 0});
           logger.With("ROB_ID", request.rob_id)
               .With("Value", request.data)
               .Info("Memory write");
