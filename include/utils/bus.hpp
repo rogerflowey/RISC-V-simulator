@@ -17,6 +17,9 @@ public:
     Channel(){
         Clock::getInstance().subscribe([this]() { this->tick();},FALLING);
     }
+    bool can_send() const {
+        return writer_ready;
+    }
     bool send(const T& data){
         if(writer_ready){
             return false;
@@ -25,11 +28,11 @@ public:
         writer_ready = true;
         return true;
     }
-    std::optional<const T&> peek(){
+    std::optional<T> peek(){
         if(!reader_ready) return std::nullopt;
         return reader_slot;
     }
-    std::optional<const T&> receive(){
+    std::optional<T> receive(){
         if(!reader_ready) return std::nullopt;
         consumed = true;
         return reader_slot;
@@ -59,7 +62,7 @@ public:
     bool send(const T& data){
         return channel.send(data);
     }
-    std::optional<const T&> get(){
+    std::optional<T> get(){
         return channel.peek();
     }
 };

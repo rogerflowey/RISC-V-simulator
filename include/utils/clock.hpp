@@ -22,6 +22,12 @@ public:
         return instance;
     }
 
+    void reset() {
+        current_time = 0;
+        subscribers.clear();
+        tock_sub.clear();
+    }
+
     void tick() {
         current_time++;
 
