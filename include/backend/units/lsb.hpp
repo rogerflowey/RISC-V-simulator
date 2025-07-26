@@ -1,16 +1,16 @@
 #pragma once
 
-#include "cdb.hpp"
+#include "backend/cdb.hpp"
 #include "constants.hpp"
-#include "reg.hpp"
-#include "units/memory.hpp"
-#include "units/mob.hpp"
+#include "middlend/reg.hpp"
+#include "backend/units/memory.hpp"
+#include "backend/units/mob.hpp"
 #include "utils/bus.hpp"
 #include "utils/hive.hpp"
 
 
 struct MemoryIns{
-    MemoryRequestType type;
+    MemoryRequest req;
     MemAddrType v_rs1;
     RobIDType q_rs1;
     RegIDType rs1;
@@ -61,7 +61,14 @@ public:
             }
         }
 
-        
+        // phase 3: send memory requests
+        for(auto it = buffer.begin(); it != buffer.end(); ++it){
+            if(it->q_rs1 == 0 && it->q_rs2 == 0){
+                
+                buffer.erase(it);
+                break;
+            }
+        }
 
     }
 };

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cdb.hpp"
+#include "backend/cdb.hpp"
 #include "constants.hpp"
 #include "utils/buffered.hpp"
 #include "utils/clock.hpp"
@@ -19,8 +19,6 @@ public:
         Clock::getInstance().subscribe([this]{ this->tick(); });
     }
 
-    // WARNING: Data committed in last cycle will not be in reg, 
-    // you have to check the CDB for it
     std::pair<RegDataType,RobIDType> get(RegIDType id){
         return {*reg[id],*rename[id]};
     }
