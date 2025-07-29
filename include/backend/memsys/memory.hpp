@@ -1,10 +1,11 @@
 #pragma once
-#include "backend/cdb.hpp"
+
+#include "utils/clock.hpp"
+#include "utils/bus.hpp"
+#include "utils/ints.hpp"
 #include "constants.hpp"
 #include "logger.hpp"
-#include "utils/bus.hpp"
-#include "utils/clock.hpp"
-#include "utils/ints.hpp"
+#include "../cdb.hpp"
 
 enum MemoryRequestType { READ, WRITE };
 
@@ -27,19 +28,18 @@ struct MemoryRequest {
 
 class Memory {
   alignas(8) std::byte memory[MEMORY_SIZE]{};
-  int time_cnt;
+  int time_cnt = 0;
   MemoryRequest request;
-  Channel<MemoryRequest> request_c;
-  Channel<CDBResult> response_c;
+
+  Channel<MemoryRequest>& request_c;
+  Channel<CDBResult>& response_c;
 
 public:
-  Memory() {
+  Memory(Channel<MemoryRequest>& req_channel, Channel<CDBResult>& resp_channel)
+      : request_c(req_channel), response_c(resp_channel) {
     Clock::getInstance().subscribe([this] { this->tick(); });
   }
 
-  Channel<MemoryRequest> &get_request_channel() { return request_c; }
-
-  Channel<CDBResult> &get_response_channel() { return response_c; }
 
   void tick() {
     if (time_cnt == 0) {
@@ -53,9 +53,12 @@ public:
     } else {
       time_cnt--;
       if (time_cnt == 0) {
-        // finished request, check the channel
-        if (!response_c.can_send())
+        // finished request, check if the channel can accept the result
+        if (!response_c.can_send()) {
+          // Stall for one cycle if output is blocked
+          time_cnt++; 
           return;
+        }
 
         if (request.type == READ) {
           auto value =
@@ -65,12 +68,15 @@ public:
                                       &memory[request.address + request.size]))
                   : bytes_to_uint(&memory[request.address],
                                   &memory[request.address + request.size]);
-          response_c.send(CDBResult{ request.rob_id, value});
+          response_c.send(CDBResult{request.rob_id, value});
           logger.With("ROB_ID", request.rob_id)
               .With("Value", value)
               .Info("Memory read");
-        } else {
-          response_c.send(CDBResult{ request.rob_id, 0});
+        } else { // WRITE
+          // The actual memory write happens here
+          auto bytes = uint_to_bytes(request.data);
+          std::copy(bytes.begin(), bytes.end(), &memory[request.address]);
+          response_c.send(CDBResult{request.rob_id, 0}); // Write result is 0
           logger.With("ROB_ID", request.rob_id)
               .With("Value", request.data)
               .Info("Memory write");

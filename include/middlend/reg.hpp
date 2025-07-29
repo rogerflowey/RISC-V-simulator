@@ -1,38 +1,37 @@
 #pragma once
 
-#include "backend/cdb.hpp"
 #include "constants.hpp"
-#include "utils/buffered.hpp"
-#include "utils/clock.hpp"
+
 #include <utility>
+#include <array>
 
 
 
 
 class RegisterFile{
-    std::array<Buffered<RegDataType>, REG_SIZE> reg;
-    std::array<Buffered<RobIDType>, REG_SIZE> rename;
-    CommonDataBus& cdb;
+    std::array<RegDataType, REG_SIZE> reg;
+    std::array<RobIDType, REG_SIZE> rename;
 
 public:
-    RegisterFile(CommonDataBus& cdb) : cdb(cdb) {
-        Clock::getInstance().subscribe([this]{ this->tick(); });
-    }
-
     std::pair<RegDataType,RobIDType> get(RegIDType id){
-        return {*reg[id],*rename[id]};
+        return {reg[id],rename[id]};
     }
     void preset(RegIDType id, RobIDType rob_id){
-        rename[id] <= rob_id;
+        rename[id] = rob_id;
     }
 
-    void tick(){
-        auto result = cdb.get();
-        if(result){
-            for(int i = 0; i < REG_SIZE; i++){
-                if(*rename[i] == result->rob_id){
-                    reg[i] <= result->data;
-                }
+    void flush(){
+        for(int i = 0; i < REG_SIZE; i++){
+            if(rename[i] != 0){
+                rename[i] = 0;
+            }
+        }
+    }
+
+    void fill(RobIDType rob_id, RegDataType value){
+        for(int i = 0; i < REG_SIZE; i++){
+            if(rename[i] == rob_id){
+                reg[i] = value;
             }
         }
     }

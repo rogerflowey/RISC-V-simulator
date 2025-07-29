@@ -3,10 +3,10 @@
 #include "backend/cdb.hpp"
 #include "constants.hpp"
 #include "logger.hpp"
-#include "backend/units/memory.hpp"
+#include "middlend/rob.hpp"
 #include "utils/bus.hpp"
-#include "utils/clock.hpp"
 #include "utils/queue.hpp"
+#include "memory.hpp"
 
 struct MOBEntry {
   MemoryRequest req;
@@ -16,22 +16,30 @@ struct MOBEntry {
 
 class MemoryOrderBuffer {
   queue<MOBEntry, LSB_SIZE> queue;
-  CommonDataBus &cdb;
-  Memory &mem;
 
-  Channel<std::pair<RobIDType, MemoryRequestType>> mark_c;
-  Channel<MemoryRequest> fill_c;
+  Channel<std::pair<RobIDType, MemoryRequestType>>& mark_in_c;
+  Channel<MemoryRequest>& fill_in_c;
+  Channel<MemoryRequest>& mem_request_out_c;
+
+  Bus<ROBEntry>& commit_channel;
 
 public:
-  MemoryOrderBuffer(CommonDataBus &cdb, Memory &mem) : cdb(cdb), mem(mem) {
-    Clock::getInstance().subscribe([this]{ this->work(); });
-    cdb.connect(mem.get_response_channel());
+  MemoryOrderBuffer(Channel<std::pair<RobIDType, MemoryRequestType>>& mark_channel,
+                    Channel<MemoryRequest>& fill_channel,
+                    Channel<MemoryRequest>& mem_req_out_channel,
+                    Bus<ROBEntry>& commit_channel)
+      : mark_in_c(mark_channel),
+        fill_in_c(fill_channel),
+        mem_request_out_c(mem_req_out_channel),
+        commit_channel(commit_channel) {
+    Clock::getInstance().subscribe([this] { this->work(); });
   }
 
   void work() {
     // phase 0: regular work
+    // first mark, then fill
     if (!queue.full()) {
-      auto result = mark_c.receive();
+      auto result = mark_in_c.receive();
       if (result) {
         auto [rob_id, type] = result.value();
         queue.push_back(MOBEntry{{type, false, rob_id, 0, 0, 0}, false, false});
@@ -40,14 +48,13 @@ public:
             .Info("MOBEntry added");
       }
     }
-    auto result = fill_c.receive();
+    auto result = fill_in_c.receive();
     if (result) {
       auto id = result.value().rob_id;
       for (size_t i = 0; i < queue.size(); ++i) {
         if (queue[i].req.rob_id == id) {
           queue[i].req = result.value();
           queue[i].ready = true;
-
           logger.With("ROB_ID", queue[i].req.rob_id)
               .With("Type", queue[i].req.type == MemoryRequestType::READ
                                 ? "READ"
@@ -59,10 +66,10 @@ public:
     }
 
     // phase 1: check cdb for STORE commit
-    auto cdb_result = cdb.get();
-    if (cdb_result) {
+    auto commit_result = commit_channel.get();
+    if (commit_result) {
       for (size_t i = 0; i < queue.size(); ++i) {
-        if (queue[i].req.rob_id == cdb_result->rob_id) {
+        if (queue[i].req.rob_id == commit_result->id) {
           queue[i].committed = true;
         }
       }
@@ -71,11 +78,10 @@ public:
     // phase 2: send new memory request
     if (!queue.empty()) {
       MOBEntry entry = queue.front();
-      if (entry.req.type == READ || entry.committed) {
-        if (mem.get_request_channel().can_send()) {
-          mem.get_request_channel().send(entry.req);
+      if (entry.ready && (entry.req.type == READ || entry.committed)) {
+        if (mem_request_out_c.can_send()) {
+          mem_request_out_c.send(entry.req);
           queue.pop_front();
-
           logger.With("ROB_ID", entry.req.rob_id)
               .With("Type", entry.req.type == MemoryRequestType::READ
                                 ? "READ"

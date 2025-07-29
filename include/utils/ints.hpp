@@ -1,6 +1,7 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
-
+#include <array>
 
 
 
@@ -37,4 +38,13 @@ inline int32_t bytes_to_sint(It begin, It end) {
     }
 
     return static_cast<int32_t>(val);
+}
+
+inline std::array<std::byte, 4> uint_to_bytes(uint32_t val){
+    std::array<std::byte, 4> result;
+    result[0] = static_cast<std::byte>((val >> 24) & 0xFF);
+    result[1] = static_cast<std::byte>((val >> 16) & 0xFF);
+    result[2] = static_cast<std::byte>((val >> 8) & 0xFF);
+    result[3] = static_cast<std::byte>(val & 0xFF);
+    return result;
 }

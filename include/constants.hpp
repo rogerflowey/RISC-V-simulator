@@ -8,7 +8,7 @@ using RegDataType = uint32_t;
 using WordType = uint32_t;
 
 // 0 is left for unused
-using RobIDType = uint8_t;
+using RobIDType = uint32_t; // for simplicity to avoid considering circular situations
 
 
 using MemAddrType = uint32_t;
