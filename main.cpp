@@ -6,9 +6,9 @@
 #include "utils/logger/logger.hpp"
 
 int main() {
-    std::ofstream log_file("cpu_sim.log");
-    logger.SetStream(log_file);
-    logger.SetLevel(LogLevel::INFO);
+    //std::ofstream log_file("cpu_sim.log");
+    logger.SetStream(std::cerr);
+    logger.SetLevel(LogLevel::ERROR);
     try {
         auto byte_memory = Loader::parse_memory_image(std::cin);
         auto instruction_memory = Loader::convert_bytes_to_words(byte_memory);
