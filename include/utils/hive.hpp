@@ -3,6 +3,7 @@
 #include <array>
 #include <optional>
 #include <iterator> // For std::forward_iterator_tag
+#include <type_traits> // For std::conditional_t
 
 template<typename T, size_t MAX_SIZE>
 class hive {
@@ -30,8 +31,9 @@ public:
     class base_iterator {
     private:
         using hive_ptr_type = std::conditional_t<IsConst, const hive*, hive*>;
-        using reference_type = std::conditional_t<IsConst, const_reference, reference>;
-        using pointer_type = std::conditional_t<IsConst, const_pointer, pointer>;
+        // CORRECTED LINES: Use `typename hive::` to disambiguate from the iterator's own typedefs.
+        using reference_type = std::conditional_t<IsConst, typename hive::const_reference, typename hive::reference>;
+        using pointer_type = std::conditional_t<IsConst, typename hive::const_pointer, typename hive::pointer>;
 
         hive_ptr_type parent_hive = nullptr;
         size_type index = 0;

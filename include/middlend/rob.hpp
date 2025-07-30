@@ -6,19 +6,22 @@
 #include "instruction.hpp"
 #include "logger.hpp"
 #include "utils/queue.hpp"
-#include <sys/types.h>
 
-enum ROBState { ISSUE, COMMIT, WRITE_RESULT, EXECUTE };
+enum ROBState { ISSUE, COMMIT, HALT };
 
 struct ROBEntry {
   RobIDType id;
   OpType type;
   PCType pc;
+  RegIDType reg_id;
   RegDataType value;
   ROBState state = ISSUE;
+
+  // Branch specific fields
   bool is_branch = false;
   bool predicted_taken = false;
   bool is_taken;
+  PCType target_pc;
 };
 
 class ReorderBuffer {
@@ -26,6 +29,24 @@ class ReorderBuffer {
   RobIDType next_id = 1;
 
 public:
+  bool can_allocate() {
+    return !buffer.full();
+  }
+
+  bool empty() const {
+    return buffer.empty();
+  }
+
+  const ROBEntry& front() const {
+    return buffer.front();
+  }
+
+  void pop_front() {
+    if (!buffer.empty()) {
+      buffer.pop_front();
+    }
+  }
+
   RobIDType allocate(ROBEntry e) {
     e.id = next_id++;
     buffer.push_back(e);
@@ -35,13 +56,18 @@ public:
   std::optional<RegDataType> get(RobIDType id) {
     for (int i = 0; i < buffer.size(); i++) {
       if (buffer[i].id == id) {
-        return buffer[i].value;
+        // A HALT instruction has no result to forward.
+        if (buffer[i].state == COMMIT) {
+          return buffer[i].value;
+        }
+        return std::nullopt;
       }
     }
     return std::nullopt;
   }
 
   void flush(){
+    logger.Warn("Reorder Buffer flushed.");
     buffer.clear();
   }
 
@@ -52,7 +78,7 @@ public:
         buffer[i].state = COMMIT;
         logger.With("ROB_ID", buffer[i].id)
             .With("Value", buffer[i].value)
-            .Info("Buffer entry committed");
+            .Info("ROB entry updated from CDB, ready to commit.");
       }
     }
   }
@@ -61,20 +87,15 @@ public:
     for (int i = 0; i < buffer.size(); i++) {
       if (buffer[i].id == result.rob_id) {
         buffer[i].is_taken = result.is_taken;
-        buffer[i].pc = result.target_pc;
+        buffer[i].target_pc = result.target_pc;
+        if (buffer[i].reg_id == 0) {
+          buffer[i].state = COMMIT;
+        }
+        logger.With("ROB_ID", buffer[i].id)
+            .With("Taken", buffer[i].is_taken)
+            .With("TargetPC", buffer[i].target_pc)
+            .Info("ROB branch entry updated, ready to commit.");
       }
     }
-  }
-
-  std::optional<ROBEntry> process_commit() {
-    if (!buffer.empty()) {
-      // Commit the first instruction in the buffer
-      auto entry = buffer.front();
-      if (entry.state == COMMIT) {
-        buffer.pop_front();
-        return entry;
-      }
-    }
-    return std::nullopt;
   }
 };

@@ -26,3 +26,8 @@ constexpr RobIDType REG_SIZE = 32;
 constexpr size_t ROB_SIZE = 32;
 
 constexpr size_t LSB_SIZE = 32;
+
+
+constexpr size_t RS_MEM_SIZE = 32;
+constexpr size_t RS_ALU_SIZE = 32;
+constexpr size_t RS_BRANCH_SIZE = 32;

@@ -53,3 +53,7 @@ The Back-End's mission is to execute micro-ops as soon as their operands are rea
 -   **Memory Ordering:** The LSB/MOB division separates address calculation from memory ordering. The MOB enforces a simple in-order execution for memory operations for initial correctness.
 -   **Rollback Handling:** The Rename/Dispatch unit is responsible for fetching initial register values/tags. This centralizes the logic and simplifies state restoration on a rollback, as the RAT and ROB are the primary structures that need to be managed.
 -   **Instruction "Wrapping":** The simulator models the pipeline by "wrapping" an instruction with more metadata as it flows through the stages. We use distinct C++ `structs` for the data packet at each major pipeline interface (e.g., `FetchedInstr`, `DecodedInstr`, `MicroOp`).
+
+
+## check list:
+- **Flush** all modules need to wire the Flush bus in and check flush before its work. If flush, clear all its input channel and immediate return

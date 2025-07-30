@@ -1,36 +1,39 @@
-// file: backend/memory_system.hpp
-
 #pragma once
-#include "cdb.hpp"
+
+#include "backend/cdb.hpp"
 #include "backend/memsys/memory.hpp"
 #include "backend/memsys/mob.hpp"
-#include "backend/memsys/mrs.hpp" // Assuming this is the header for MemoryRS
+#include "backend/memsys/mrs.hpp" 
 #include "middlend/rob.hpp"
+#include "constants.hpp"
+#include "instruction.hpp"
+#include "utils/bus.hpp"
+
+using MemoryRS = MemoryReservationStation<RS_MEM_SIZE>;
 
 class MemorySystem {
 private:
-    // --- Internal Modules (Owned by MemorySystem) ---
     Memory memory;
     MemoryOrderBuffer mob;
     MemoryRS memory_rs;
 
-    // --- Internal Channels (The "internal wires") ---
-    Channel<std::pair<RobIDType, MemoryRequestType>> mob_mark_c;
-    Channel<MemoryRequest> mrs_to_mob_fill_c;
-    Channel<MemoryRequest> mob_to_mem_req_c;
-    Channel<CDBResult> response_to_cdb;
+    Channel<std::pair<RobIDType, MemoryRequestType>> rs_to_mob_mark_c;
+
+    Channel<FilledInstruction> mrs_to_mob_fill_c;
+    HandshakeChannel<MemoryRequest> mob_to_mem_req_c;
+    Channel<CDBResult> mem_read_response_c;
+    Channel<CDBResult> mob_write_commit_c;
 
 public:
-    // The constructor is the internal wiring diagram for this subsystem.
-    // It takes references to the EXTERNAL things it needs to connect to.
-    MemorySystem(CommonDataBus& cdb,
-                 Channel<MemoryIns>& mem_instr, Bus<ROBEntry>& commit_channel)
-        // Initialize internal modules, passing them the internal channels
-        : memory(mob_to_mem_req_c, response_to_cdb),
-          mob(mob_mark_c, mrs_to_mob_fill_c, mob_to_mem_req_c, commit_channel),
-          memory_rs(cdb, mem_instr, mrs_to_mob_fill_c)
-    {
-        // This subsystem is responsible for connecting its output to the CDB
-        cdb.connect(response_to_cdb);
+    MemorySystem(
+        CommonDataBus& cdb,
+        Channel<FilledInstruction>& mem_instr_in_c,
+        Bus<ROBEntry>& commit_bus,
+        Bus<bool>& global_flush_bus
+    ) : memory(mob_to_mem_req_c, mem_read_response_c, global_flush_bus),
+        mob(rs_to_mob_mark_c, mrs_to_mob_fill_c, mob_to_mem_req_c, mob_write_commit_c, commit_bus, global_flush_bus),
+        memory_rs(cdb, mem_instr_in_c, mrs_to_mob_fill_c, rs_to_mob_mark_c, global_flush_bus), mob_to_mem_req_c() {
+        cdb.connect(mem_read_response_c);
+        cdb.connect(mob_write_commit_c);
     }
 };

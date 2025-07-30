@@ -13,7 +13,7 @@ target_include_directories(common_settings INTERFACE
 )
 target_compile_options(common_settings INTERFACE 
     -Wall 
-    -Wextra 
+    -Wextra
     -Wpedantic
 )
 
@@ -35,3 +35,4 @@ foreach(test_source ${test_sources})
 
     add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
+

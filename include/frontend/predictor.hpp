@@ -1,5 +1,6 @@
 #pragma once
 #include "constants.hpp"
+#include "logger.hpp"
 #include <map>
 
 
@@ -22,11 +23,14 @@ public:
         auto it = prediction_table.find(pc);
 
         if (it == prediction_table.end()) {
+            logger.With("pc",pc).Info(("New entry,Not Taken"));
             return false; 
         }
         
         STATUS current_status = it->second;
-        return (current_status == WEAK_YES || current_status == STRONG_YES);
+        bool result = (current_status == WEAK_YES || current_status == STRONG_YES);
+        logger.With("pc",pc).Info((result?"Taken":"Not Taken"));
+        return result;
     }
 
     void update(PCType pc, bool actually_taken) {

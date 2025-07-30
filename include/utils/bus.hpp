@@ -18,7 +18,7 @@ public:
         Clock::getInstance().subscribe([this]() { this->tick();},FALLING);
     }
     bool can_send() const {
-        return writer_ready;
+        return !writer_ready;
     }
     bool send(const T& data){
         if(writer_ready){
@@ -37,6 +37,11 @@ public:
         consumed = true;
         return reader_slot;
     }
+    void clear() {
+        reader_ready = false;
+        writer_ready = false;
+        consumed = false;
+    }
     void tick(){
         if(consumed){
             reader_ready = false;
@@ -50,6 +55,46 @@ public:
     }
 };
 
+
+template<typename T>
+class HandshakeChannel {
+private:
+    T slot;
+    bool reader_is_ready = false;
+    bool data_is_valid = false;
+
+public:
+    HandshakeChannel() = default;
+
+    bool can_send() const {
+        return reader_is_ready && !data_is_valid;
+    }
+
+    bool send(const T& data) {
+        if (!can_send()) {
+            return false;
+        }
+        slot = data;
+        data_is_valid = true;
+        reader_is_ready = false;
+        return true;
+    }
+
+    void ready() {
+        reader_is_ready = true;
+    }
+    std::optional<T> receive() {
+        if (data_is_valid) {
+            data_is_valid = false;
+            return slot;
+        }
+        return std::nullopt;
+    }
+    void clear() {
+        reader_is_ready = false;
+        data_is_valid = false;
+    }
+};
 
 
 template<typename T>

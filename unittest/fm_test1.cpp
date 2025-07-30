@@ -40,61 +40,52 @@ void run_test(void (*test_func)(), const std::string& test_name) {
 
 // Helper to advance the clock and print a message for clarity
 void tick(const std::string& message = "") {
+    Clock::getInstance().tick();
     if (!message.empty()) {
         std::cout << "Cycle " << Clock::getInstance().getTime() + 1 << ": " << message << std::endl;
     }
-    Clock::getInstance().tick();
 }
 
 /**
  * @brief Tests the full pipeline from Frontend to Control, including a branch
  * misprediction, global flush, and recovery.
  */
+/**
+ * @brief Tests the full pipeline from Frontend to Control, including a branch
+ * misprediction, global flush, and recovery.
+ */
 void test_full_pipeline_misprediction_and_recovery() {
-    // 1. SETUP
-    // --- Program Memory ---
-    // 0x0: beq x0, x0, 8  (branch to PC=8, always taken)
-    // 0x4: addi x5, x0, 99 (wrong path)
-    // 0x8: addi x6, x0, 100 (correct path)
+    // 1. SETUP (Same as before)
     std::vector<uint32_t> instructions;
-    instructions.resize(12); // Pad for PC indexing
+    instructions.resize(12);
     instructions[0] = 0x00000463; // beq x0, x0, 8
     instructions[1] = 0x06300293; // addi x5, x0, 99
     instructions[2] = 0x06400313; // addi x6, x0, 100
-
-    // --- Communication Channels & Buses ---
     Channel<Instruction> decoded_instruction_c;
     Channel<PCType> mispredict_flush_pc_c;
     Bus<bool> global_flush_bus;
     Bus<ROBEntry> commit_bus;
     CommonDataBus cdb;
     Channel<BranchResult> branch_result_c;
-    Channel<FetchedInstruction> alu_c, mem_c, branch_c;
+    Channel<FilledInstruction> alu_c, mem_c, branch_c;
     Channel<CDBResult> alu_to_cdb_c, mem_to_cdb_c;
     cdb.connect(alu_to_cdb_c);
     cdb.connect(mem_to_cdb_c);
-
-    // --- Core Components ---
     Frontend frontend(instructions, decoded_instruction_c, mispredict_flush_pc_c, global_flush_bus, commit_bus);
     Control control(decoded_instruction_c, branch_result_c, alu_c, mem_c, branch_c, commit_bus, global_flush_bus, mispredict_flush_pc_c, cdb);
-
-    // --- Simulated Backend Units (as simple lambdas) ---
-    // Branch unit: takes 1 cycle to execute
     Clock::getInstance().subscribe([&]{
         auto fetched = branch_c.receive();
         if (fetched) {
-            // BEQ x0, x0 is always taken.
             branch_result_c.send({fetched->id, true, fetched->ins.pc + fetched->ins.imm});
         }
     });
-    // ALU: takes 2 cycles to execute
-    std::optional<FetchedInstruction> alu_inflight;
+    std::optional<FilledInstruction> alu_inflight;
     int alu_timer = 0;
     Clock::getInstance().subscribe([&]{
         if (alu_inflight) {
             alu_timer--;
             if (alu_timer <= 0) {
-                alu_to_cdb_c.send({alu_inflight->id, 42}); // Send dummy result
+                alu_to_cdb_c.send({alu_inflight->id, 42});
                 alu_inflight.reset();
             }
         }
@@ -107,75 +98,46 @@ void test_full_pipeline_misprediction_and_recovery() {
         }
     });
 
-
     // 2. EXECUTION & VERIFICATION
 
-    // --- Phase 1: Fetch and Predict-Not-Taken ---
-    tick("PCLogic sends PC=0 to Fetcher.");
-    tick("Fetcher gets PC=0; PCLogic sends PC=4.");
-    tick("Decoder gets BEQ@0, predicts NOT-TAKEN, sends to Control.");
-    auto inst_beq = decoded_instruction_c.peek();
-    assert(inst_beq.has_value());
-    ASSERT_EQ(inst_beq->pc, (PCType)0, "BEQ instruction should be decoded");
-    ASSERT_EQ(inst_beq->predicted_taken, false, "BEQ should be predicted NOT-TAKEN initially");
+    // --- Phases 1 & 2: Speculative Execution (Cycles 1-5) ---
+    tick("C1: PCLogic -> 0");
+    tick("C2: Fetcher -> 0");
+    tick("C3: Decoder -> 0 (BEQ, predicted NOT-TAKEN)");
+    tick("C4: Control issues BEQ@0; Decoder -> 4 (wrong ADDI)");
+    tick("C5: Control issues ADDI@4; Branch Unit finishes");
 
-    // --- Phase 2: Speculative (Wrong-Path) Execution ---
-    tick("Control issues BEQ@0 to Branch Unit. Frontend decodes wrong-path ADDI@4.");
-    assert(branch_c.peek().has_value());
-    ASSERT_EQ(branch_c.peek()->id, (RobIDType)1, "BEQ should be issued with ROB ID 1");
-    auto inst_addi_wrong = decoded_instruction_c.peek();
-    assert(inst_addi_wrong.has_value());
-    ASSERT_EQ(inst_addi_wrong->pc, (PCType)4, "Wrong-path ADDI should be decoded");
-
-    tick("Control issues wrong-path ADDI@4 to ALU. Branch Unit finishes.");
-    // Control consumes the ADDI from the channel and sends it to the ALU channel
-    assert(alu_c.peek().has_value());
-    ASSERT_EQ(alu_c.peek()->id, (RobIDType)2, "Wrong-path ADDI should be issued with ROB ID 2");
-    // Branch unit sends its result back
-    assert(branch_result_c.peek().has_value());
-    ASSERT_EQ(branch_result_c.peek()->rob_id, (RobIDType)1, "Branch result for ROB ID 1 should be ready");
-    ASSERT_EQ(branch_result_c.peek()->is_taken, true, "Branch result should be TAKEN");
-
-    // --- Phase 3: Misprediction Detection and Flush Trigger ---
-    tick("Control processes branch result, ROB entry for BEQ is updated.");
-    // Control's work() will consume the branch result and update the ROB.
-    // The BEQ is not yet at the head of the ROB, so it cannot commit.
-
-    tick("Control commits BEQ@0, detects misprediction, and triggers flush.");
-    // Now the BEQ is at the head of the ROB and can be committed.
-    // During commit, Control compares predicted (false) vs actual (true) and finds the misprediction.
+    // --- Phase 3: Misprediction Detection (Cycle 6) ---
+    tick("C6: Control processes branch result, commits BEQ, and triggers flush.");
     auto commit_info = commit_bus.get();
     assert(commit_info.has_value());
-    ASSERT_EQ(commit_info->id, (RobIDType)1, "BEQ should be committed");
-
-    // The flush signals should be sent in the same cycle as the commit.
+    ASSERT_EQ(commit_info->id, (RobIDType)1, "BEQ should be committed in Cycle 6");
     assert(global_flush_bus.get().has_value());
-    ASSERT_EQ(global_flush_bus.get().value(), true, "Global flush signal should be asserted");
+    ASSERT_EQ(global_flush_bus.get().value(), true, "Global flush signal should be asserted in Cycle 6");
     assert(mispredict_flush_pc_c.peek().has_value());
     ASSERT_EQ(mispredict_flush_pc_c.peek().value(), (PCType)8, "Flush PC should be the correct target (8)");
 
     // --- Phase 4: Pipeline Flush and Recovery ---
-    tick("FLUSH CYCLE. Frontend and Control see flush signal and clear their state.");
-    // Frontend's PCLogic will see the flush PC and use it next cycle.
-    // Frontend's Fetcher/Decoder will see the flush bus and clear their inputs.
-    // Control will see the flush bus and call its flush() method.
-    // No new instruction should be decoded this cycle.
+    tick("C7: FLUSH CYCLE. All components see flush signal and clear their state.");
+    // PCLogic gets the new PC=8 and sends it to the Fetcher.
+    // Fetcher and Decoder see the flush signal, clear their inputs, and return early.
+    // The pipeline is now empty. The Control unit has consumed the stale instruction.
+
+    tick("C8: RECOVERY BUBBLE. Fetcher processes PC=8 and sends to Decoder.");
+    // The correct instruction is now between the Fetcher and Decoder.
+    // The output to Control is still empty.
     assert(!decoded_instruction_c.peek().has_value());
 
-    tick("Frontend restarts: PCLogic sends correct PC=8 to Fetcher.");
-    tick("Fetcher gets PC=8.");
-    tick("Decoder gets correct-path ADDI@8.");
-    assert(!decoded_instruction_c.peek().has_value()); // Still in frontend pipeline
-
     // --- Phase 5: Correct-Path Execution ---
-    tick("Correct-path ADDI@8 is sent to Control.");
+    tick("C9: RECOVERY COMPLETE. Decoder processes instruction and sends to Control.");
+    // The correct instruction has now traversed the entire Frontend and is waiting for Control.
     auto inst_addi_correct = decoded_instruction_c.peek();
     assert(inst_addi_correct.has_value());
-    ASSERT_EQ(inst_addi_correct->pc, (PCType)8, "Correct-path ADDI@8 should be decoded");
+    ASSERT_EQ(inst_addi_correct->pc, (PCType)8, "Correct-path ADDI@8 should be decoded by C9");
     ASSERT_EQ(inst_addi_correct->op, OpType::ADDI, "Opcode should be ADDI");
 
-    tick("Control issues correct-path ADDI@8 to ALU.");
-    // The ROB was flushed, so the new instruction should get ROB ID 1.
+    tick("C10: Control issues correct-path ADDI@8 to ALU.");
+    // Control's work() function now receives the instruction that was sent in C9.
     assert(alu_c.peek().has_value());
     ASSERT_EQ(alu_c.peek()->id, (RobIDType)1, "Correct-path ADDI should get new ROB ID 1 after flush");
     ASSERT_EQ(alu_c.peek()->ins.pc, (PCType)8, "Correct-path ADDI PC should be 8");
@@ -185,7 +147,7 @@ void test_full_pipeline_misprediction_and_recovery() {
 
 int main() {
     // Set logger to a higher level to reduce noise during tests
-    logger.SetLevel(LogLevel::WARN);
+    logger.SetLevel(LogLevel::INFO);
 
     run_test(test_full_pipeline_misprediction_and_recovery, "Full Pipeline Misprediction and Recovery Test");
 

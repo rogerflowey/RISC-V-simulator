@@ -1,4 +1,4 @@
-// logger.hpp
+// utils/logger/logger.hpp
 #pragma once
 
 #include <iostream>
@@ -8,6 +8,7 @@
 #include <sstream>
 #include <chrono>
 #include <iomanip>
+#include <functional>      // <--- ADDED for std::function
 #include <source_location> // C++20 required
 
 // Represents the severity of the log message
@@ -23,7 +24,6 @@ class Logger;
 /**
  * @class LogBuilder
  * @brief A temporary object to build a single log entry with ad-hoc fields, using a fluent API.
- *        (Formerly LogEntry)
  */
 class LogBuilder {
 private:
@@ -52,17 +52,15 @@ class Logger {
     friend class LogBuilder;
 
 private:
-    std::ostream& output_stream;
+    std::ostream* output_stream;
     LogLevel min_level;
-    // Fields that are part of this logger's permanent context
-    std::vector<std::pair<std::string, std::string>> context_fields;
+    std::vector<std::pair<std::string, std::function<std::string()>>> context_fields;
 
-    // Private constructor for creating new loggers with context
     inline Logger(
         std::ostream& stream,
         LogLevel level,
-        std::vector<std::pair<std::string, std::string>> context)
-        : output_stream(stream), min_level(level), context_fields(std::move(context)) {}
+        std::vector<std::pair<std::string, std::function<std::string()>>> context)
+        : output_stream(&stream), min_level(level), context_fields(std::move(context)) {}
 
     // The core logging function, called by LogBuilder or Logger itself
     inline void log_internal(
@@ -72,20 +70,27 @@ private:
         const std::source_location& loc);
 
 public:
+    // --- MODIFIED --- Changed stream to a pointer, default is now &std::cout
     inline Logger(std::ostream& stream = std::cout, LogLevel level = LogLevel::INFO);
 
     inline void SetLevel(LogLevel level);
-
-    
-
+    inline void SetStream(std::ostream& stream);
     // --- Entry points for logging ---
 
     /**
-     * @brief Creates a new logger with an added permanent context field.
+     * @brief Creates a new logger with an added permanent STATIC context field.
      * @return A new Logger instance with the combined context.
      */
     template<typename T>
     [[nodiscard]] inline Logger WithContext(const std::string& key, const T& value) const;
+
+    /**
+     * @brief Creates a new logger with an added permanent DYNAMIC context field.
+     * @param value_producer A function that will be called to get the value for each log.
+     * @return A new Logger instance with the combined context.
+     */
+    [[nodiscard]] inline Logger WithContext(const std::string& key, std::function<std::string()> value_producer) const;
+
 
     // Start a structured log with a temporary field for a single message
     template<typename T>
@@ -138,11 +143,17 @@ template<typename ExceptionType>
 
 // --- Logger Implementation ---
 
+// --- MODIFIED --- Constructor now takes a pointer
 inline Logger::Logger(std::ostream& stream, LogLevel level)
-    : output_stream(stream), min_level(level) {}
+    : output_stream(&stream), min_level(level) {}
 
 inline void Logger::SetLevel(LogLevel level) {
     min_level = level;
+}
+
+// --- ADDED --- Implementation for SetStream
+inline void Logger::SetStream(std::ostream& stream) {
+    output_stream = &stream;
 }
 
 inline void Logger::log_internal(
@@ -155,37 +166,48 @@ inline void Logger::log_internal(
         return;
     }
     auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto time_t_val = std::chrono::system_clock::to_time_t(now);
     
-    output_stream << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S")
-                  << " [" << level_to_string(level) << "] "
-                  << "\"" << message << "\" ";
+    // --- MODIFIED --- Dereference the output_stream pointer
+    *output_stream << " [" << level_to_string(level) << "] "
+                   << "\"" << message << "\" ";
 
-    // First, print the permanent context fields from the logger
+    // --- MODIFIED ---
+    // First, print the permanent context fields from the logger by calling the function
     for (const auto& pair : context_fields) {
-        output_stream << pair.first << "=\"" << pair.second << "\" ";
+        *output_stream << pair.first << "=\"" << pair.second() << "\" "; // <-- Calls the function
     }
     // Then, print the temporary fields for this specific message
     for (const auto& pair : ephemeral_fields) {
-        output_stream << pair.first << "=\"" << pair.second << "\" ";
+        *output_stream << pair.first << "=\"" << pair.second << "\" ";
     }
 
-    output_stream << "(" << loc.function_name() << " @ " << loc.file_name() << ":" << loc.line() << ")\n";
+    *output_stream << "(" << loc.function_name() << " @ " << loc.file_name() << ":" << loc.line() << ")\n";
 }
 
+// --- NEW OVERLOADS for WithContext ---
+
+// Overload for STATIC values. It captures the value and returns it from a lambda.
 template<typename T>
 [[nodiscard]] inline Logger Logger::WithContext(const std::string& key, const T& value) const {
-    // Create a copy of the current context
-    auto new_context = this->context_fields;
-    
-    // Add the new field
     std::stringstream ss;
     ss << value;
-    new_context.emplace_back(key, ss.str());
+    std::string static_value = ss.str();
 
-    // Return a new logger instance with the new, extended context
-    return Logger(this->output_stream, this->min_level, std::move(new_context));
+    // Create a lambda that captures the pre-formatted string by value
+    auto value_producer = [static_value]() { return static_value; };
+    
+    // Call the other overload that takes a std::function
+    return this->WithContext(key, value_producer);
 }
+[[nodiscard]] inline Logger Logger::WithContext(const std::string& key, std::function<std::string()> value_producer) const {
+    auto new_context = this->context_fields;
+    new_context.emplace_back(key, std::move(value_producer));
+    // --- MODIFIED --- The private constructor now takes a pointer, which this->output_stream is.
+    return Logger(*this->output_stream, this->min_level, std::move(new_context));
+}
+
+// --- UNCHANGED METHODS ---
 
 template<typename T>
 inline LogBuilder Logger::With(const std::string& key, const T& value) {
@@ -194,7 +216,6 @@ inline LogBuilder Logger::With(const std::string& key, const T& value) {
 }
 
 inline void Logger::Info(const std::string& message, const std::source_location& loc) {
-    // Pass an empty vector for ephemeral fields
     log_internal(LogLevel::INFO, message, {}, loc);
 }
 
