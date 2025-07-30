@@ -17,8 +17,8 @@ target_compile_options(common_settings INTERFACE
     -Wpedantic
 )
 
-add_executable(CPUsim main.cpp)
-target_link_libraries(CPUsim PRIVATE common_settings)
+add_executable(code main.cpp)
+target_link_libraries(code PRIVATE common_settings)
 
 
 enable_testing()

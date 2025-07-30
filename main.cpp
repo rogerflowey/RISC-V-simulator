@@ -9,9 +9,8 @@ int main() {
     std::ofstream log_file("cpu_sim.log");
     logger.SetStream(log_file);
     logger.SetLevel(LogLevel::INFO);
-    std::ifstream data_file("../data/testcases/hanoi.data");
     try {
-        auto byte_memory = Loader::parse_memory_image(data_file);
+        auto byte_memory = Loader::parse_memory_image(std::cin);
         auto instruction_memory = Loader::convert_bytes_to_words(byte_memory);
         CPU cpu(instruction_memory);
         Clock& clock = Clock::getInstance();
