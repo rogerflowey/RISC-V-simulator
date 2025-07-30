@@ -26,11 +26,12 @@ private:
 
 public:
     MemorySystem(
+        std::array<std::byte, MEMORY_SIZE>& unified_memory,
         CommonDataBus& cdb,
         Channel<FilledInstruction>& mem_instr_in_c,
         Bus<ROBEntry>& commit_bus,
         Bus<bool>& global_flush_bus
-    ) : memory(mob_to_mem_req_c, mem_read_response_c, global_flush_bus),
+    ) : memory(unified_memory, mob_to_mem_req_c, mem_read_response_c, global_flush_bus), // Pass it to Memory
         mob(rs_to_mob_mark_c, mrs_to_mob_fill_c, mob_to_mem_req_c, mob_write_commit_c, commit_bus, global_flush_bus),
         memory_rs(cdb, mem_instr_in_c, mrs_to_mob_fill_c, rs_to_mob_mark_c, global_flush_bus), mob_to_mem_req_c() {
         cdb.connect(mem_read_response_c);

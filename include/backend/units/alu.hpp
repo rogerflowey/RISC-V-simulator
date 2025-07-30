@@ -49,9 +49,6 @@ private:
       // FIX: Compare unsigned v_rs1 with signed imm. C++ promotion rules handle this correctly.
       case OpType::SLTIU: return (static_cast<uint32_t>(v_rs1) < imm) ? 1 : 0;
 
-      // U-Type
-      // FIX: The immediate from the decoder is already shifted. The ALU just passes it through or adds the PC.
-      // For AUIPC, v_rs1 must be the PC value.
       case OpType::AUIPC: return v_rs1 + imm;
       case OpType::LUI:   return imm;
 

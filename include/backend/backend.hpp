@@ -51,6 +51,8 @@ public:
      */
     Backend(
         // Shared communication infrastructure
+        std::array<std::byte, MEMORY_SIZE>& unified_memory,
+
         CommonDataBus& cdb,
         Bus<bool>& global_flush_bus,
 
@@ -96,6 +98,7 @@ public:
             global_flush_bus
         ),
         memory_system(
+            unified_memory,
             cdb,
             control_to_mem_rs_c,      // Input from Control
             commit_bus,               // Input from Control (ROB)

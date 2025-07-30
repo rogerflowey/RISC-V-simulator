@@ -6,6 +6,7 @@
 #include "constants.hpp"
 #include "logger.hpp"
 #include "backend/cdb.hpp"
+#include <array> // Required for std::array
 
 enum MemoryRequestType { READ, WRITE };
 
@@ -27,7 +28,7 @@ struct MemoryRequest {
 };
 
 class Memory {
-  alignas(8) std::byte memory[MEMORY_SIZE]{};
+  std::array<std::byte, MEMORY_SIZE>& memory;
   int time_cnt = 0;
   MemoryRequest request;
 
@@ -36,8 +37,14 @@ class Memory {
   Bus<bool>& global_flush_bus;
 
 public:
-  Memory(HandshakeChannel<MemoryRequest>& req_channel, Channel<CDBResult>& resp_channel, Bus<bool>& flush_bus)
-      : request_c(req_channel), response_c(resp_channel), global_flush_bus(flush_bus) {
+  Memory(std::array<std::byte, MEMORY_SIZE>& unified_memory,
+         HandshakeChannel<MemoryRequest>& req_channel,
+         Channel<CDBResult>& resp_channel,
+         Bus<bool>& flush_bus)
+      : memory(unified_memory),
+        request_c(req_channel),
+        response_c(resp_channel),
+        global_flush_bus(flush_bus) {
     Clock::getInstance().subscribe([this] { this->tick(); });
   }
 
@@ -94,6 +101,13 @@ private:
         return;
       }
 
+      // Safety check for out-of-bounds read
+      if (request.address + request.size > MEMORY_SIZE) {
+          logger.Error("Memory read out of bounds at address: " + std::to_string(request.address));
+          response_c.send(CDBResult{request.rob_id, 0}); // Send a default value on error
+          return;
+      }
+
       auto value =
           request.is_signed
               ? static_cast<MemDataType>(
@@ -105,9 +119,18 @@ private:
       response_c.send(CDBResult{request.rob_id, value});
       logger.With("ROB_ID", request.rob_id).With("Value", value).Info("Memory read");
 
-    } else {
+    } else { // WRITE
+      // Safety check for out-of-bounds write
+      if (request.address + request.size > MEMORY_SIZE) {
+          logger.Error("Memory write out of bounds at address: " + std::to_string(request.address));
+          // This check prevents the segfault
+          return;
+      }
+
       auto bytes = uint_to_bytes(request.data);
-      std::copy(bytes.begin() + (4 - request.size), bytes.end(), &memory[request.address]);
+
+      std::copy(bytes.begin(), bytes.begin() + request.size, &memory[request.address]);
+
       logger.With("ROB_ID", request.rob_id).With("Value", request.data).Info("Memory write");
     }
   }

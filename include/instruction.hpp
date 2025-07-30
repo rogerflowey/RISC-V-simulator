@@ -195,6 +195,8 @@ struct FilledInstruction {
   RegDataType v_rs2 = 0;
   RobIDType q_rs1 = 0;
   RobIDType q_rs2 = 0;
+  FilledInstruction() = default;
+  FilledInstruction(Instruction ins,  RobIDType id):ins(ins),id(id) {}
 };
 #include <sstream>
 
