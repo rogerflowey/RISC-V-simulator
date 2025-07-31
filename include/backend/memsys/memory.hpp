@@ -49,51 +49,26 @@ public:
   }
 
   void tick() {
-    if (global_flush_bus.get()) {
-      handle_flush();
-      return;
-    }
-
-    if (time_cnt > 0) {
-      handle_busy_state();
-    } else {
-      handle_idle_state();
-    }
-  }
-
-private:
-  void handle_flush() {
-    if (time_cnt > 0 && request.type == READ) {
-      time_cnt = 0;
-    }
-
-    if (auto incoming_request = request_c.receive()) {
-      if (incoming_request->type == WRITE) {
-        request = *incoming_request;
-        time_cnt = 3;
+    if(time_cnt==0) {
+      if(auto result = request_c.receive()) {
+        request = *result;
+        time_cnt=3;
       }
     }
-    if (time_cnt == 0) {
+    if(global_flush_bus.get()) {
+      if(time_cnt>0 && request.type==READ) {
+        time_cnt=0;
+      }
+    }
+    if(time_cnt>0 && --time_cnt==0) {
+      process_completed_request();
+    }
+    if(time_cnt==0) {
       request_c.ready();
     }
   }
 
-  void handle_idle_state() {
-    request_c.ready();
-
-    if (auto new_request = request_c.receive()) {
-      request = *new_request;
-      time_cnt = 3;
-    }
-  }
-
-  void handle_busy_state() {
-    time_cnt--;
-    if (time_cnt == 0) {
-      process_completed_request();
-    }
-  }
-
+private:
   void process_completed_request() {
     if (request.type == READ) {
       if (!response_c.can_send()) {
