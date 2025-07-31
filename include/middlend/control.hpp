@@ -31,7 +31,7 @@ class Control {
   // internal
   ReorderBuffer rob;
   RegisterFile reg;
-  norb::RegisterDumper<REG_SIZE, RegDataType> reg_dumper_;
+  //norb::RegisterDumper<REG_SIZE, RegDataType> reg_dumper_;
 
 public:
   Control(Channel<Instruction> &ins_channel,
@@ -44,8 +44,8 @@ public:
       : ins_channel(ins_channel), branch_result_channel(branch_result_channel),
         cdb(cdb), alu_channel(alu_channel), mem_channel(mem_channel),
         branch_channel(branch_channel), commit_bus(commit_bus),
-        flush_bus(flush_bus), flush_pc_channel(flush_pc_channel),
-        reg_dumper_("../dump/my.dump")
+        flush_bus(flush_bus), flush_pc_channel(flush_pc_channel)
+        //,reg_dumper_("../dump/my.dump")
   {
     Clock::getInstance().subscribe([this] { this->work(); });
   }
