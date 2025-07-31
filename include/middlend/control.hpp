@@ -106,7 +106,7 @@ public:
             .Info("Instruction committed.");
         reg.fill(commit_result.id, commit_result.reg_id, commit_result.value);
 
-        reg_dumper_.dump(commit_result.pc, reg.get_snapshot());
+        //reg_dumper_.dump(commit_result.pc, reg.get_snapshot());
 
         commit_bus.send(commit_result);
 
