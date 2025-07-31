@@ -1,5 +1,4 @@
 #include <iostream>
-#include <fstream>
 #include "cpu.hpp"
 #include "loader.hpp"
 #include "logger.hpp"
