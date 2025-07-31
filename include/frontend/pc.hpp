@@ -19,8 +19,8 @@ public:
         Clock::getInstance().subscribe([this]{ this->work(); });
     }
     void work() {
-        if (!final_pc.can_send()) {
-            return; // STALL
+        if(flush_c.peek()||prediction_c.peek()){
+            final_pc.writer_clear();
         }
         if (auto flush_result = flush_c.receive()) {
             logger.With("old",pc).With("new",flush_result.value()).Info("Overwrite with flush");
@@ -32,6 +32,9 @@ public:
             pc = pred_result.value();
         }
         logger.With("pc", pc).Info("sending PC");
+        if (!final_pc.can_send()) {
+            return; // STALL
+        }
         final_pc.send(pc);
 
         pc += 4;

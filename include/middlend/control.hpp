@@ -7,6 +7,7 @@
 #include "logger.hpp"
 #include "middlend/reg.hpp"
 #include "middlend/rob.hpp"
+#include "utils/reg_dump.hpp"
 #include "utils/bus.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -30,6 +31,7 @@ class Control {
   // internal
   ReorderBuffer rob;
   RegisterFile reg;
+  norb::RegisterDumper<REG_SIZE, RegDataType> reg_dumper_;
 
 public:
   Control(Channel<Instruction> &ins_channel,
@@ -42,7 +44,9 @@ public:
       : ins_channel(ins_channel), branch_result_channel(branch_result_channel),
         cdb(cdb), alu_channel(alu_channel), mem_channel(mem_channel),
         branch_channel(branch_channel), commit_bus(commit_bus),
-        flush_bus(flush_bus), flush_pc_channel(flush_pc_channel) {
+        flush_bus(flush_bus), flush_pc_channel(flush_pc_channel),
+        reg_dumper_("../dump/my.dump")
+  {
     Clock::getInstance().subscribe([this] { this->work(); });
   }
 
@@ -92,13 +96,18 @@ public:
       if (head_entry.state == COMMIT) {
         ROBEntry commit_result = head_entry;
         rob.pop_front();
-      
+
+        std::stringstream ss;
+        ss << "0x" << std::hex << commit_result.pc;
         logger.With("ROB_ID", commit_result.id)
-            .With("PC", commit_result.pc)
+            .With("PC", ss.str())
             .With("RegID", static_cast<int>(commit_result.reg_id))
             .With("Value", commit_result.value)
             .Info("Instruction committed.");
         reg.fill(commit_result.id, commit_result.reg_id, commit_result.value);
+
+        reg_dumper_.dump(commit_result.pc, reg.get_snapshot());
+
         commit_bus.send(commit_result);
 
         if (is_branch(commit_result.type)) {
@@ -118,7 +127,6 @@ public:
       }
     }
 
-    // --- ISSUE STAGE ---
     auto ins_result = ins_channel.peek();
     if (ins_result && rob.can_allocate()) {
       Instruction ins = *ins_result;

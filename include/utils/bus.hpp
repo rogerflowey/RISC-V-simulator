@@ -37,6 +37,15 @@ public:
         consumed = true;
         return reader_slot;
     }
+    void reader_clear(){
+        reader_ready = false;
+        consumed = false;
+    }
+    void writer_clear(){
+        writer_ready = false;
+    }
+
+    //legacy, should be removed
     void clear() {
         reader_ready = false;
         writer_ready = false;

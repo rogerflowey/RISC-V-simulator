@@ -11,8 +11,6 @@ enum STATUS {
     STRONG_YES = 3 
 };
 
-// This module is completely not hardware, act as a placeholding simplification of real logic
-// The module temporarily does not use Channel, but as an embedded part of Decoder
 
 class Predictor {
 private:

@@ -36,7 +36,7 @@ public:
 
     void work(){
         if (frontend_flush_bus.get() || flush_bus.get()) {
-            pc_chan.receive(); // Consume and discard the wrong-path PC.
+            pc_chan.reader_clear(); // Consume and discard the wrong-path PC.
             return;
         }
         if(!instruction_chan.can_send()){
