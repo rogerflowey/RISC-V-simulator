@@ -7,7 +7,7 @@
 #include "logger.hpp"
 #include "utils/queue.hpp"
 
-enum ROBState { ISSUE, COMMIT, HALT };
+enum ROBState { ISSUED, COMMIT_READY, ISHALT };
 
 struct ROBEntry {
   RobIDType id;
@@ -15,9 +15,8 @@ struct ROBEntry {
   PCType pc;
   RegIDType reg_id;
   RegDataType value;
-  ROBState state = ISSUE;
+  ROBState state = ISSUED;
 
-  // Branch specific fields
   bool is_branch = false;
   bool predicted_taken = false;
   bool is_taken;
@@ -56,8 +55,7 @@ public:
   std::optional<RegDataType> get(RobIDType id) {
     for (int i = 0; i < buffer.size(); i++) {
       if (buffer[i].id == id) {
-        // A HALT instruction has no result to forward.
-        if (buffer[i].state == COMMIT) {
+        if (buffer[i].state == COMMIT_READY) {
           return buffer[i].value;
         }
         return std::nullopt;
@@ -75,7 +73,7 @@ public:
     for (int i = 0; i < buffer.size(); i++) {
       if (buffer[i].id == result.rob_id) {
         buffer[i].value = result.data;
-        buffer[i].state = COMMIT;
+        buffer[i].state = COMMIT_READY;
         logger.With("ROB_ID", buffer[i].id)
             .With("Value", buffer[i].value)
             .Info("ROB entry updated from CDB, ready to commit.");
@@ -89,7 +87,7 @@ public:
         buffer[i].is_taken = result.is_taken;
         buffer[i].target_pc = result.target_pc;
         if (buffer[i].reg_id == 0) {
-          buffer[i].state = COMMIT;
+          buffer[i].state = COMMIT_READY;
         }
         logger.With("ROB_ID", buffer[i].id)
             .With("Taken", buffer[i].is_taken)

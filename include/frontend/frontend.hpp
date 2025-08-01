@@ -10,13 +10,11 @@
 
 class Frontend {
 private:
-    // Internal Channels and Buses for component communication
     Channel<PCType> pc_to_fetch_c;
     Channel<FetchResult> fetch_to_decode_c;
     Channel<PCType> decode_to_pc_pred_c;
     Bus<bool> frontend_flush_bus;
 
-    // Owned Components
     PCLogic pc_logic;
     Fetcher fetcher;
     Decoder decoder;

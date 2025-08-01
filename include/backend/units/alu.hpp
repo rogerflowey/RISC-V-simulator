@@ -10,10 +10,8 @@
 
 class ALU {
 private:
-  // Input
   Channel<FilledInstruction>& ins_in_c;
 
-  // Output
   Channel<CDBResult>& cdb_out_c;
 
   Bus<bool>& global_flush_bus;
@@ -25,7 +23,6 @@ private:
     const auto& imm = ins.imm;
 
     switch (ins.op) {
-      // R-Type
       case OpType::ADD:  return v_rs1 + v_rs2;
       case OpType::SUB:  return v_rs1 - v_rs2;
       case OpType::AND:  return v_rs1 & v_rs2;
@@ -37,7 +34,6 @@ private:
       case OpType::SLT:  return (static_cast<int32_t>(v_rs1) < static_cast<int32_t>(v_rs2)) ? 1 : 0;
       case OpType::SLTU: return (static_cast<uint32_t>(v_rs1) < static_cast<uint32_t>(v_rs2)) ? 1 : 0;
 
-      // I-Type (ALU)
       case OpType::ADDI:  return v_rs1 + imm;
       case OpType::ANDI:  return v_rs1 & imm;
       case OpType::ORI:   return v_rs1 | imm;
@@ -46,7 +42,6 @@ private:
       case OpType::SRLI:  return static_cast<uint32_t>(v_rs1) >> (imm & 0x1F);
       case OpType::SRAI:  return static_cast<int32_t>(v_rs1) >> (imm & 0x1F);
       case OpType::SLTI:  return (static_cast<int32_t>(v_rs1) < imm) ? 1 : 0;
-      // FIX: Compare unsigned v_rs1 with signed imm. C++ promotion rules handle this correctly.
       case OpType::SLTIU: return (static_cast<uint32_t>(v_rs1) < imm) ? 1 : 0;
 
       case OpType::AUIPC: return v_rs1 + imm;

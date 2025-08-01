@@ -36,7 +36,7 @@ public:
 
     void work(){
         if (frontend_flush_bus.get() || flush_bus.get()) {
-            pc_chan.reader_clear(); // Consume and discard the wrong-path PC.
+            pc_chan.reader_clear();
             return;
         }
         if(!instruction_chan.can_send()){
@@ -45,7 +45,6 @@ public:
         if(auto pc = pc_chan.receive()){
             PCType addr = *pc;
 
-            // Safety check for out-of-bounds access
             if (addr + 3 >= MEMORY_SIZE) {
                 logger.Warn("Instruction fetch out of bounds at PC: " + std::to_string(addr));
                 instruction_chan.send({addr, 0x00000000});

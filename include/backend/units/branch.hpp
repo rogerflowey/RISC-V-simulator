@@ -19,11 +19,11 @@ struct BranchResult{
 
 class BranchUnit {
 private:
-  // Input
+  // input
   Channel<FilledInstruction>& ins_in_c;
   Bus<bool>& global_flush_bus;
 
-  // Outputs
+  // output
   Channel<BranchResult>& branch_result_out_c;
   Channel<CDBResult>& cdb_out_c;
 
@@ -37,16 +37,14 @@ private:
     bool is_taken = false;
     PCType target_pc = 0;
 
-    // Determine if the branch is taken
     switch (ins.op) {
-      // B-Type (Conditional Branches)
       case OpType::BEQ:  is_taken = (v_rs1 == v_rs2); break;
       case OpType::BNE:  is_taken = (v_rs1 != v_rs2); break;
       case OpType::BLT:  is_taken = (static_cast<int32_t>(v_rs1) < static_cast<int32_t>(v_rs2)); break;
       case OpType::BGE:  is_taken = (static_cast<int32_t>(v_rs1) >= static_cast<int32_t>(v_rs2)); break;
       case OpType::BLTU: is_taken = (static_cast<uint32_t>(v_rs1) < static_cast<uint32_t>(v_rs2)); break;
       case OpType::BGEU: is_taken = (static_cast<uint32_t>(v_rs1) >= static_cast<uint32_t>(v_rs2)); break;
-      // J-Type & I-Type Jumps are always taken
+
       case OpType::JAL:
       case OpType::JALR:
         is_taken = true;

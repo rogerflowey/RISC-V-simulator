@@ -76,11 +76,8 @@ private:
         return;
       }
 
-      // Safety check for out-of-bounds read
       if (request.address + request.size > MEMORY_SIZE) {
-          logger.Error("Memory read out of bounds at address: " + std::to_string(request.address));
-          response_c.send(CDBResult{request.rob_id, 0}); // Send a default value on error
-          return;
+          throw logger.Error("Memory read out of bounds at address: " + std::to_string(request.address));
       }
 
       auto value =
@@ -94,12 +91,9 @@ private:
       response_c.send(CDBResult{request.rob_id, value});
       logger.With("ROB_ID", request.rob_id).With("Value", value).Info("Memory read");
 
-    } else { // WRITE
-      // Safety check for out-of-bounds write
+    } else {
       if (request.address + request.size > MEMORY_SIZE) {
-          logger.Error("Memory write out of bounds at address: " + std::to_string(request.address));
-          // This check prevents the segfault
-          return;
+          throw logger.Error("Memory write out of bounds at address: " + std::to_string(request.address));
       }
 
       auto bytes = uint_to_bytes(request.data);

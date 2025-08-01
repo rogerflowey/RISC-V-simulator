@@ -82,7 +82,7 @@ public:
     if (!rob.empty()) {
       const auto &head_entry = rob.front();
 
-      if (head_entry.state == HALT) {
+      if (head_entry.state == ISHALT) {
         auto a0_state = reg.get(10);
         RegDataType a0_value = a0_state.first;
         std::cout << (a0_value & 0xff) << std::endl;
@@ -93,7 +93,7 @@ public:
       }
 
       // Normal commit logic
-      if (head_entry.state == COMMIT) {
+      if (head_entry.state == COMMIT_READY) {
         ROBEntry commit_result = head_entry;
         rob.pop_front();
 
@@ -153,7 +153,7 @@ public:
                               ins.pc,
                               ins.rd,
                               0,
-                              is_halt_instruction ? HALT : ISSUE,
+                              is_halt_instruction ? ISHALT : ISSUED,
                               ins.is_branch,
                               ins.predicted_taken,
                               false,

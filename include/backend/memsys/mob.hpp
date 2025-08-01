@@ -142,6 +142,8 @@ public:
   }
 };
 
+
+
 inline std::optional<MemoryRequest>
 translate_to_memory_request(const FilledInstruction &filled_ins) {
   if (!is_mem(filled_ins.ins.op)) {

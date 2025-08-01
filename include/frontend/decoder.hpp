@@ -9,19 +9,15 @@
 #include "logger.hpp"
 
 class Decoder {
-
-  // input
   Channel<FetchResult> &input_c;
   Bus<ROBEntry> &commit_bus;
-  // output
+
   Channel<Instruction> &output_c;
   Channel<PCType> &pc_pred_c;
 
-  // Flush signal buses
   Bus<bool> &flush_bus;         
   Bus<bool> &frontend_flush_bus;
 
-  // Internal components
   Predictor predictor;
 
 public:
