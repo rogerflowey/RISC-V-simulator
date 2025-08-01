@@ -30,7 +30,7 @@ private:
 
     // Core Pipeline Stages
     Frontend frontend;
-    Control control;
+    Controller control;
     Backend backend;
 
 public:

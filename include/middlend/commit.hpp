@@ -8,7 +8,7 @@
 #include <string>   // For std::string
 #include "utils/reg_dump.hpp" // For RegisterDumper
 
-class Commit {
+class Committer {
 private:
     CommonDataBus& cdb_;
     Channel<BranchResult>& branch_result_channel_;
@@ -31,7 +31,7 @@ private:
     norb::RegisterDumper<32, RegDataType> dumper_;
 
 public:
-    Commit(
+    Committer(
         ReorderBuffer& rob,
         RegisterFile& reg,
         CommonDataBus& cdb,

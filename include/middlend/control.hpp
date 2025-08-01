@@ -15,18 +15,18 @@
 #include <memory> 
 
 
-class Control {
+class Controller {
 private:
     ReorderBuffer rob_;
     RegisterFile reg_;
 
-    std::unique_ptr<RenameDispatch> renamer_;
-    std::unique_ptr<Commit> committer_;
+    std::unique_ptr<Dispatcher> renamer_;
+    std::unique_ptr<Committer> committer_;
 
     Bus<bool>& flush_bus_;
 
 public:
-    Control(
+    Controller(
 
         Channel<Instruction>& ins_channel,
         Channel<BranchResult>& branch_result_channel,
@@ -42,7 +42,7 @@ public:
         flush_bus_(flush_bus)
     {
        
-        committer_ = std::make_unique<Commit>(
+        committer_ = std::make_unique<Committer>(
             rob_,
             reg_,
             cdb,
@@ -53,7 +53,7 @@ public:
         );
 
         
-        renamer_ = std::make_unique<RenameDispatch>(
+        renamer_ = std::make_unique<Dispatcher>(
             ins_channel,
             cdb,
             rob_,

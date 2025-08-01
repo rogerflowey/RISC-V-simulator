@@ -5,7 +5,7 @@
 #include "instruction.hpp"
 #include "backend/cdb.hpp"
 
-class RenameDispatch {
+class Dispatcher {
 private:
     Channel<Instruction>& ins_channel_;
     CommonDataBus& cdb_;
@@ -27,7 +27,7 @@ private:
     Bus<bool>& global_flush_bus_;
 
 public:
-    RenameDispatch(
+    Dispatcher(
         Channel<Instruction>& ins_channel,
         CommonDataBus& cdb,
         ReorderBuffer& rob,
