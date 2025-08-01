@@ -71,7 +71,8 @@ public:
             reg_,
             alu_channel,
             mem_channel,
-            branch_channel
+            branch_channel,
+            flush_bus_
         );
 
         Clock::getInstance().subscribe([this] {
@@ -87,6 +88,7 @@ public:
         logger.Warn("Control unit flush initiated.");
         reg_.flush();
         rob_.flush();
+        
     }
 
     /**

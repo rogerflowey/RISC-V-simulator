@@ -5,6 +5,8 @@
 #include "backend/cdb.hpp"
 #include "backend/units/branch.hpp"
 #include <iostream> // For std::cout
+#include <string>   // For std::string
+#include "utils/reg_dump.hpp" // For RegisterDumper
 
 class Commit {
 private:
@@ -27,6 +29,9 @@ private:
     Bus<bool>& flush_bus_;
     Channel<PCType>& flush_pc_channel_;
 
+    RegisterFile& reg_; // For getting register state snapshot for dumping
+    norb::RegisterDumper<32, RegDataType> dumper_;
+
 public:
     Commit(
         ReorderBuffer& rob,
@@ -38,6 +43,7 @@ public:
         Channel<PCType>& flush_pc_channel
     ) :
         cdb_(cdb),
+        reg_(reg),
         branch_result_channel_(branch_result_channel),
         // Wire up the ports
         rob_cdb_port_(rob.create_cdb_port()),
@@ -48,12 +54,18 @@ public:
         reg_get_port_(reg.create_get_port()), // Create port to read register file
         commit_bus_(commit_bus),
         flush_bus_(flush_bus),
-        flush_pc_channel_(flush_pc_channel)
+        flush_pc_channel_(flush_pc_channel),
+        dumper_("../dump/my.dump") // Initialize the dumper
     {
         Clock::getInstance().subscribe([this] { this->work(); });
     }
 
     void work() {
+        if(flush_bus_.get()) {
+            logger.Warn("Commit unit flush initiated.");
+            branch_result_channel_.clear();
+            return;
+        }
         if (auto cdb_result = cdb_.get()) {
             if (rob_cdb_port_.can_push()) {
                 rob_cdb_port_.push(*cdb_result);
@@ -82,8 +94,16 @@ public:
             if (!reg_fill_port_.can_push() || !rob_pop_port_.can_push()) {
                 return;
             }
-            
+
             ROBEntry commit_result = head_entry;
+
+            // ----DUMP Logic----
+            auto reg_snapshot = reg_.get_snapshot();
+            if (commit_result.reg_id != 0) {
+                reg_snapshot[commit_result.reg_id] = commit_result.value;
+            }
+            dumper_.dump(commit_result.pc, reg_snapshot);
+            // --- END DUMP LOGIC ---
 
             if (commit_result.reg_id != 0) {
                 reg_fill_port_.push({commit_result.reg_id, commit_result.id, commit_result.value});
@@ -95,9 +115,7 @@ public:
                 PCType correct_pc = commit_result.is_taken ? commit_result.target_pc : (commit_result.pc + 4);
                 flush_pc_channel_.send(correct_pc);
                 flush_bus_.send(true);
-                return; 
             }
-            
             rob_pop_port_.push(true);
         }
     }

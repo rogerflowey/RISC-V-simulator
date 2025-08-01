@@ -12,20 +12,20 @@ private:
     CommonDataBus& cdb_;
     ReadPort<bool, bool> rob_stall_port_;
     ReadPort<bool, RobIDType> rob_next_id_port_;
-    // VVVVVV FIX 1 VVVVVV
+
     ReadPort<RegIDType, std::pair<RegDataType, RobIDType>> reg_get_port_rs1_;
     ReadPort<RegIDType, std::pair<RegDataType, RobIDType>> reg_get_port_rs2_;
-    // VVVVVV FIX 2 VVVVVV
+
     ReadPort<RobIDType, std::optional<RegDataType>> rob_bypass_port_rs1_;
     ReadPort<RobIDType, std::optional<RegDataType>> rob_bypass_port_rs2_;
-    // ^^^^^^ FIX 2 ^^^^^^
 
-    // --- Output Ports/Channels ---
     WritePort<ROBEntry>& rob_allocate_port_;
     WritePort<PresetRequest>& reg_preset_port_;
     Channel<FilledInstruction>& alu_channel_;
     Channel<FilledInstruction>& mem_channel_;
     Channel<FilledInstruction>& branch_channel_;
+
+    Bus<bool>& global_flush_bus_;
 
 public:
     RenameDispatch(
@@ -35,7 +35,8 @@ public:
         RegisterFile& reg,
         Channel<FilledInstruction>& alu_channel,
         Channel<FilledInstruction>& mem_channel,
-        Channel<FilledInstruction>& branch_channel
+        Channel<FilledInstruction>& branch_channel,
+        Bus<bool>& global_flush_bus_
     ) :
         ins_channel_(ins_channel),
         cdb_(cdb),
@@ -49,12 +50,18 @@ public:
         reg_preset_port_(reg.create_preset_port()),
         alu_channel_(alu_channel),
         mem_channel_(mem_channel),
-        branch_channel_(branch_channel)
+        branch_channel_(branch_channel),
+        global_flush_bus_(global_flush_bus_)
     {
         Clock::getInstance().subscribe([this] { this->work(); });
     }
 
     void work() {
+        if(global_flush_bus_.get()) {
+            logger.Warn("RenameDispatch flush initiated.");
+            ins_channel_.clear();
+            return;
+        }
         if (rob_stall_port_.read(true) || !ins_channel_.peek()) {
             return;
         }

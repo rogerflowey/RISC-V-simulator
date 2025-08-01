@@ -119,6 +119,11 @@ public:
         buffer = data;
     }
 
+
+    void writer_clear() {
+        buffer.reset();
+    }
+
     /**
      * @brief Consumes the data from the port's buffer.
      * @details This method should be called by the owning Holder on the FALLING edge.
