@@ -7,7 +7,6 @@
 
 class RenameDispatch {
 private:
-    // --- Input Ports/Channels/Buses ---
     Channel<Instruction>& ins_channel_;
     CommonDataBus& cdb_;
     ReadPort<bool, bool> rob_stall_port_;

@@ -14,18 +14,7 @@
 
 #include <memory> 
 
-/**
- * @class Control
- * @brief A coordinator module for the processor's middle-end.
- *
- * @details This class encapsulates the entire instruction processing core, including
- * register renaming, dispatch, and in-order retirement. It owns the core stateful
- * Holders (RegisterFile, ReorderBuffer) and the logic Workers (RenameDispatch, Commit)
- * that operate on them.
- *
- * Its role is to instantiate and wire these internal components together, presenting a
- * simple, unified interface to the rest of the simulator.
- */
+
 class Control {
 private:
     ReorderBuffer rob_;

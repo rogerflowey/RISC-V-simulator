@@ -10,26 +10,24 @@
 
 class Commit {
 private:
-    // --- Input Dependencies ---
     CommonDataBus& cdb_;
     Channel<BranchResult>& branch_result_channel_;
 
-    // --- Ports to ROB ---
     WritePort<CDBResult>& rob_cdb_port_;
     WritePort<BranchResult>& rob_branch_port_;
     ReadPort<bool, std::optional<ROBEntry>> rob_head_port_;
     WritePort<bool>& rob_pop_port_;
 
-    // --- Ports to RegisterFile ---
     WritePort<FillRequest>& reg_fill_port_;
     ReadPort<RegIDType, std::pair<RegDataType, RobIDType>> reg_get_port_; // For reading a0 on HALT
 
-    // --- Output Buses/Channels ---
     Bus<ROBEntry>& commit_bus_;
     Bus<bool>& flush_bus_;
     Channel<PCType>& flush_pc_channel_;
 
-    RegisterFile& reg_; // For getting register state snapshot for dumping
+
+    //only for dump
+    RegisterFile& reg_;
     norb::RegisterDumper<32, RegDataType> dumper_;
 
 public:
