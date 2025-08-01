@@ -13,13 +13,13 @@ private:
     Channel<BranchResult>& branch_result_channel_;
 
     // --- Ports to ROB ---
-    WritePort<CDBResult> rob_cdb_port_;
-    WritePort<BranchResult> rob_branch_port_;
+    WritePort<CDBResult>& rob_cdb_port_;
+    WritePort<BranchResult>& rob_branch_port_;
     ReadPort<bool, std::optional<ROBEntry>> rob_head_port_;
-    WritePort<bool> rob_pop_port_;
+    WritePort<bool>& rob_pop_port_;
 
     // --- Ports to RegisterFile ---
-    WritePort<FillRequest> reg_fill_port_;
+    WritePort<FillRequest>& reg_fill_port_;
     ReadPort<RegIDType, std::pair<RegDataType, RobIDType>> reg_get_port_; // For reading a0 on HALT
 
     // --- Output Buses/Channels ---
@@ -54,7 +54,6 @@ public:
     }
 
     void work() {
-        // 1. Write back results from CDB and Branch Unit to ROB
         if (auto cdb_result = cdb_.get()) {
             if (rob_cdb_port_.can_push()) {
                 rob_cdb_port_.push(*cdb_result);
@@ -66,49 +65,39 @@ public:
             }
         }
 
-        // 2. Check the head of the ROB for a committable instruction
         auto head_entry_opt = rob_head_port_.read(true);
         if (!head_entry_opt) {
-            return; // ROB is empty
+            return;
         }
         const auto& head_entry = *head_entry_opt;
 
-        // 3. Handle HALT instruction
         if (head_entry.state == ISHALT) {
-            // Replicate old behavior: read a0 (x10) and print it
             auto a0_state = reg_get_port_.read(10);
-            RegDataType a0_value = a0_state.first; // We need the committed value, not the tag
+            RegDataType a0_value = a0_state.first;
             std::cout << (a0_value & 0xff) << std::endl;
             exit(0);
         }
 
-        // 4. Handle normal commit
         if (head_entry.state == COMMIT_READY) {
-            // Stall if downstream ports are not ready
             if (!reg_fill_port_.can_push() || !rob_pop_port_.can_push()) {
                 return;
             }
             
             ROBEntry commit_result = head_entry;
 
-            // A. Write result to Architectural Register File
             if (commit_result.reg_id != 0) {
                 reg_fill_port_.push({commit_result.reg_id, commit_result.id, commit_result.value});
             }
 
-            // B. Broadcast committed instruction for logging/debugging
             commit_bus_.send(commit_result);
 
-            // C. Handle branch misprediction
             if (is_branch(commit_result.type) && commit_result.predicted_taken != commit_result.is_taken) {
                 PCType correct_pc = commit_result.is_taken ? commit_result.target_pc : (commit_result.pc + 4);
                 flush_pc_channel_.send(correct_pc);
                 flush_bus_.send(true);
-                // Don't pop the mispredicted branch yet; the flush will clear the ROB.
                 return; 
             }
             
-            // D. Pop the instruction from the ROB
             rob_pop_port_.push(true);
         }
     }

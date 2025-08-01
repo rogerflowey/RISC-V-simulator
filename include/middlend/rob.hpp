@@ -76,28 +76,28 @@ public:
   // --- Port Creation for Producers ---
 
   // For Rename: To allocate a new entry
-  WritePort<ROBEntry> create_allocate_port() {
+  WritePort<ROBEntry>& create_allocate_port() {
     auto* port = new WritePort<ROBEntry>();
     allocate_ports.push_back(port);
     return *port;
   }
 
   // For Commit: To write back CDB results
-  WritePort<CDBResult> create_cdb_port() {
+  WritePort<CDBResult>& create_cdb_port() {
     auto* port = new WritePort<CDBResult>();
     cdb_ports.push_back(port);
     return *port;
   }
 
   // For Commit: To write back branch results
-  WritePort<BranchResult> create_branch_port() {
+  WritePort<BranchResult>& create_branch_port() {
     auto* port = new WritePort<BranchResult>();
     branch_ports.push_back(port);
     return *port;
   }
 
   // For Commit: To pop the head entry after commit
-  WritePort<bool> create_pop_port() {
+  WritePort<bool>& create_pop_port() {
     auto* port = new WritePort<bool>();
     pop_ports.push_back(port);
     return *port;

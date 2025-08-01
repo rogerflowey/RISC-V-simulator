@@ -42,12 +42,12 @@ public:
             [this](RegIDType id) { return this->_get(id); }
         );
     }
-    WritePort<PresetRequest> create_preset_port() {
+    WritePort<PresetRequest>& create_preset_port() {
         auto* port = new WritePort<PresetRequest>(); // Simplified memory management
         preset_ports.push_back(port);
         return *port;
     }
-    WritePort<FillRequest> create_fill_port() {
+    WritePort<FillRequest>& create_fill_port() {
         auto* port = new WritePort<FillRequest>(); // Simplified memory management
         fill_ports.push_back(port);
         return *port;
