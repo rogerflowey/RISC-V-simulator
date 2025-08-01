@@ -55,13 +55,13 @@ public:
         control(
             decoded_instruction_c,
             branch_unit_to_control_c,
+            cdb,
             control_to_alu_rs_c,
             control_to_mem_rs_c,
             control_to_branch_rs_c,
             commit_bus,
             global_flush_bus,
-            mispredict_flush_pc_c,
-            cdb
+            mispredict_flush_pc_c
         ),
         backend(
             unified_memory,

@@ -12,7 +12,7 @@ target_include_directories(common_settings INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_compile_options(common_settings INTERFACE 
-    -O3 -DDISABLE_LOGGING
+    -O3
 )
 
 add_executable(code main.cpp)
