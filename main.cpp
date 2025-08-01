@@ -1,17 +1,15 @@
 #include <iostream>
-#include <fstream>
 #include "cpu.hpp"
 #include "loader.hpp"
 #include "logger.hpp"
 #include "utils/logger/logger.hpp"
 
-
 int main() {
-    std::ofstream log_file("cpu_sim.log");
-    logger.SetStream(log_file);
-    //logger.SetStream(std::cout);
-    logger.SetLevel(LogLevel::INFO);
-    //logger.SetLevel(LogLevel::ERROR);
+    //std::ofstream log_file("cpu_sim.log");
+    //logger.SetStream(log_file);
+    logger.SetStream(std::cerr);
+    //logger.SetLevel(LogLevel::INFO);
+    logger.SetLevel(LogLevel::ERROR);
     //std::ifstream data_file("../data/testcases/qsort.data");
     try {
         //auto initial_memory_image = Loader::parse_memory_image(data_file);
